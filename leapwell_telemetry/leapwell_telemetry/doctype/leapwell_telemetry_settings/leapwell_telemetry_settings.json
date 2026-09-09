@@ -1,0 +1,34 @@
+{
+ "actions": [],
+ "creation": "2026-09-09 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enable_dashboard"
+ ],
+ "fields": [
+  {
+   "fieldname": "enable_dashboard",
+   "fieldtype": "Check",
+   "label": "Enable Dashboard",
+   "default": "0",
+   "description": "Gates both the /telemetry dashboard shell (404s unless checked) and the delete_events API (throws unless checked). Off by default so a deployment doesn't advertise or expose either without opting in."
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "module": "Leapwell Telemetry",
+ "name": "Leapwell Telemetry Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

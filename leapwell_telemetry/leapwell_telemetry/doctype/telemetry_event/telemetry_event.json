@@ -1,0 +1,115 @@
+{
+ "actions": [],
+ "autoname": "field:client_uuid",
+ "creation": "2026-09-09 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "client_uuid",
+  "tenant_id",
+  "event_type",
+  "occurred_at",
+  "visit_uuid",
+  "sk_user_id",
+  "app_version",
+  "app_build",
+  "payload_version",
+  "payload",
+  "received_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "client_uuid",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Client UUID",
+   "reqd": 1,
+   "unique": 1,
+   "description": "Client-generated UUID minted by the SK app per event -- the document's naming field, and what makes batch ingest idempotent under retry (a resend with the same id is a no-op, never a duplicate row)."
+  },
+  {
+   "fieldname": "tenant_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Tenant ID",
+   "reqd": 1,
+   "description": "Stamped server-side from the authenticated caller's tenantId header -- never trusted from the request payload."
+  },
+  {
+   "fieldname": "event_type",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Event Type",
+   "reqd": 1,
+   "description": "e.g. \"visit_completed\", \"counselling_share\". Deliberately not a Select -- the report builder must tolerate and ignore an event type it doesn't recognise (a newer client talking to an older deployment), which a hard-validated Select would break."
+  },
+  {
+   "fieldname": "occurred_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Occurred At",
+   "reqd": 1
+  },
+  {
+   "fieldname": "visit_uuid",
+   "fieldtype": "Data",
+   "label": "Visit UUID",
+   "description": "Random per-visit correlator minted by the client for telemetry alone -- never a patient, member or encounter id. This table is deliberately not patient-linked and stays out of PHI scope."
+  },
+  {
+   "fieldname": "sk_user_id",
+   "fieldtype": "Data",
+   "label": "SK User ID",
+   "description": "Client-supplied grouping key for per-SK counts. NOT an identity claim -- must never be used for access control."
+  },
+  {
+   "fieldname": "app_version",
+   "fieldtype": "Data",
+   "label": "App Version",
+   "default": ""
+  },
+  {
+   "fieldname": "app_build",
+   "fieldtype": "Int",
+   "label": "App Build",
+   "default": "0"
+  },
+  {
+   "fieldname": "payload_version",
+   "fieldtype": "Int",
+   "label": "Payload Version",
+   "default": "1"
+  },
+  {
+   "fieldname": "payload",
+   "fieldtype": "JSON",
+   "label": "Payload",
+   "reqd": 1
+  },
+  {
+   "fieldname": "received_at",
+   "fieldtype": "Datetime",
+   "label": "Received At",
+   "default": "Now",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-09 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Leapwell Telemetry",
+ "name": "Telemetry Event",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

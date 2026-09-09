@@ -8,7 +8,10 @@ app_license = "gpl-3.0"
 # Apps
 # ------------------
 
-# required_apps = []
+# Doctypes here rely on uhis_next_core.auth.decorators for the
+# X-Auth-Token/remote-auth whitelist scheme (same reason shukhee_integration
+# requires it).
+required_apps = ["uhis_next_core"]
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [

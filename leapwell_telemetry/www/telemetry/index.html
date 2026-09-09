@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Scribe — Telemetry Report</title>
+<style>
+  :root {
+    --bg: #0f1117; --panel: #171a23; --border: #2a2e3a; --text: #e2e4e9;
+    --muted: #8b8f9c; --accent: #5b8def; --green: #2fbf71; --red: #e5484d;
+    --amber: #f5a524; --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 14px;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 12px; margin-bottom: 18px; }
+  .bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: flex-end; }
+  label { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase;
+          letter-spacing: 0.04em; margin-bottom: 4px; }
+  input, button {
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px; font-size: 13px;
+  }
+  input[type="password"], input[type="text"] { font-family: var(--mono); min-width: 220px; }
+  button { cursor: pointer; background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:hover { opacity: 0.9; }
+  button.secondary { background: var(--panel); color: var(--text); border-color: var(--border); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .card h2 { font-size: 11px; color: var(--muted); text-transform: uppercase;
+             letter-spacing: 0.04em; margin: 0 0 12px; font-weight: 600; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; }
+  .row .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .caveat { margin-top: 12px; font-size: 11.5px; color: var(--amber); font-style: italic; line-height: 1.45; }
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+  th { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.04em; }
+  td.mono { font-family: var(--mono); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .hot { color: var(--red); font-weight: 700; }
+  .ok { color: var(--green); }
+  #msg { margin: 12px 0; padding: 10px 12px; border-radius: 6px; display: none; font-size: 13px; }
+  #msg.err { display: block; background: rgba(229,72,77,0.12); color: var(--red); border: 1px solid rgba(229,72,77,0.3); }
+  #msg.info { display: block; background: rgba(91,141,239,0.12); color: var(--accent); border: 1px solid rgba(91,141,239,0.3); }
+  .wide { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+
+<h1>AI Scribe — Telemetry Report</h1>
+<div class="sub">
+  Adoption, speed, capture rate, correction rate and counselling shares, for a
+  chosen date range. This page ships no data itself — enter a UHIS bearer
+  token and tenant ID below; they stay in this browser and are sent only to
+  <span class="mono">leapwell_telemetry.api.telemetry.get_report</span>.
+</div>
+
+<div class="bar">
+  <div>
+    <label for="token">UHIS token</label>
+    <input id="token" type="password" placeholder="Bearer token" autocomplete="off">
+  </div>
+  <div>
+    <label for="tenant">Tenant ID</label>
+    <input id="tenant" type="text" size="6" placeholder="1">
+  </div>
+  <div>
+    <label for="from">From</label>
+    <input id="from" type="date">
+  </div>
+  <div>
+    <label for="to">To</label>
+    <input id="to" type="date">
+  </div>
+  <button id="go">Generate</button>
+  <button id="csv" class="secondary">Download CSV</button>
+  <button id="json" class="secondary">Download JSON</button>
+</div>
+
+<div id="msg"></div>
+<div id="out" class="grid"></div>
+
+<script>
+"use strict";
+
+const $ = (id) => document.getElementById(id);
+const LS = "leapwellTelemetryCreds";
+const REPORT_URL = "/api/method/leapwell_telemetry.api.telemetry.get_report";
+let lastReport = null;
+
+// ── credentials: remembered per-browser so you enter them once ──────────────
+(function restore() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS) || "{}");
+    if (saved.token) $("token").value = saved.token;
+    if (saved.tenant) $("tenant").value = saved.tenant;
+  } catch (_) { /* corrupt entry — just start blank */ }
+  const today = new Date();
+  const weekAgo = new Date(today.getTime() - 6 * 86400000);
+  $("to").value = iso(today);
+  $("from").value = iso(weekAgo);
+})();
+
+function iso(d) {
+  return d.getFullYear() + "-" +
+    String(d.getMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getDate()).padStart(2, "0");
+}
+
+function saveCreds() {
+  try {
+    localStorage.setItem(LS, JSON.stringify({
+      token: $("token").value.trim(),
+      tenant: $("tenant").value.trim(),
+    }));
+  } catch (_) { /* private mode — creds just won't persist */ }
+}
+
+function show(kind, text) {
+  const el = $("msg");
+  el.className = kind;
+  el.textContent = text;
+}
+function clearMsg() { $("msg").className = ""; $("msg").textContent = ""; }
+
+// null means "no denominator", which must never render as 0%.
+const pct = (v) => (v === null || v === undefined) ? "—" : v.toFixed(1) + "%";
+const num = (v) => (v === null || v === undefined) ? "—"
+  : (Number.isInteger(v) ? String(v) : v.toFixed(1));
+function dur(ms) {
+  if (ms === null || ms === undefined) return "—";
+  const s = Math.round(ms / 1000);
+  return s >= 60 ? Math.floor(s / 60) + "m " + (s % 60) + "s" : s + "s";
+}
+
+async function generate() {
+  clearMsg();
+  const token = $("token").value.trim();
+  const tenant = $("tenant").value.trim();
+  saveCreds();
+
+  if (!token || !tenant) {
+    show("err", "Both a UHIS token and a tenant ID are required — this endpoint always authenticates.");
+    return;
+  }
+
+  // Match the phone: it buckets by the DEVICE's local calendar date, so send
+  // this browser's offset rather than letting the server assume UTC.
+  const tzOffsetMinutes = -new Date().getTimezoneOffset();
+  const body = new URLSearchParams();
+  body.set("payload", JSON.stringify({
+    from: $("from").value,
+    to: $("to").value,
+    tz_offset_minutes: tzOffsetMinutes,
+  }));
+
+  let resp;
+  try {
+    resp = await fetch(REPORT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-Auth-Token": token.startsWith("Bearer ") ? token : "Bearer " + token,
+        "tenantId": tenant,
+      },
+      body: body.toString(),
+    });
+  } catch (e) {
+    show("err", "Request failed: " + e.message);
+    return;
+  }
+  if (resp.status === 401 || resp.status === 403) {
+    show("err", resp.status + " — invalid token/tenant, or not permitted. Check both above and Generate again.");
+    return;
+  }
+  if (!resp.ok) {
+    show("err", resp.status + " — " + (await resp.text()).slice(0, 300));
+    return;
+  }
+  // Frappe whitelisted methods wrap the return value as {"message": {...}}.
+  const json = await resp.json();
+  lastReport = json.message;
+  render(lastReport);
+}
+
+function card(title, rows, caveat, wide) {
+  const body = rows.map(([k, v, cls]) =>
+    '<div class="row"><span>' + k + '</span><span class="v ' + (cls || "") + '">' + v + "</span></div>"
+  ).join("");
+  return '<div class="card' + (wide ? " wide" : "") + '"><h2>' + title + "</h2>" + body +
+    (caveat ? '<div class="caveat">' + caveat + "</div>" : "") + "</div>";
+}
+
+function render(r) {
+  const a = r.adoption, t = r.timeToComplete, f = r.fieldsCaptured,
+        c = r.correction, s = r.counselling,
+        // Absent on payload v1 rows.
+        pv = r.provenance || {};
+
+  let html = "";
+  html += card("Adoption", [
+    ["SKs using AI Scribe", a.usersUsingScribe],
+    ["SKs manual only", a.usersManualOnly],
+    ["AI Scribe visits", a.scribeVisits],
+    ["Manual visits", a.manualVisits],
+    ["Total visits", a.visits],
+  ]);
+  html += card("Time to complete", [
+    ["Median with AI Scribe", dur(t.scribeMedianMs)],
+    ["Median manual", dur(t.manualMedianMs)],
+    ["Samples (scribe / manual)", t.scribeSamples + " / " + t.manualSamples],
+  ], t.caveat);
+  html += card("Fields captured", [
+    ["Total AI-filled fields", f.totalAiFields],
+    ["Average per AI Scribe visit", num(f.avgPerScribeVisit)],
+    ["Capture rate", pct(f.captureRatePct)],
+    ["Fields visible to the SK", f.denominators.extractableVisible],
+    ["Fields rendered", f.denominators.rendered],
+    ["Fields in form", f.denominators.library],
+  ]);
+  html += card("Correction rate", [
+    ["AI-filled", c.aiFilled],
+    ["Corrected by SK", c.corrected],
+    ["Left unchanged", c.unchanged],
+    ["Manual correction rate", pct(c.ratePct)],
+  ], c.caveat);
+  html += card("Where values came from", [
+    ["Manually entered", num(pv.manual)],
+    ["Prefilled from history", num(pv.prefilled)],
+    ["Computed from other fields", num(pv.derived)],
+    ["AI overridden (SK had filled it)", num(pv.aiOverridden)],
+    ["Disagreement rate", pct(pv.disagreementRatePct)],
+  ], pv.caveat);
+  html += card("Counselling share", [
+    ["SMS compose opened", s.smsComposeOpened],
+    ["WhatsApp compose opened", s.whatsappComposeOpened],
+  ], s.caveat);
+  html += card("Direct patient contact", [
+    ["SMS to patient", num(s.contactSmsOpened)],
+    ["WhatsApp to patient", num(s.contactWhatsappOpened)],
+  ], "From the CCE drawer and contact sheet — not counselling shares.");
+
+  if (c.perField.length) {
+    const rows = c.perField.map((x) =>
+      "<tr><td class='mono'>" + x.fieldId + "</td>" +
+      "<td class='num'>" + x.filled + "</td>" +
+      "<td class='num'>" + x.corrected + "</td>" +
+      "<td class='num " + ((x.ratePct || 0) >= 50 ? "hot" : "ok") + "'>" + pct(x.ratePct) + "</td></tr>"
+    ).join("");
+    html += '<div class="card wide"><h2>Most-corrected fields</h2><table>' +
+      "<thead><tr><th>Field</th><th class='num'>Filled</th>" +
+      "<th class='num'>Corrected</th><th class='num'>Rate</th></tr></thead>" +
+      "<tbody>" + rows + "</tbody></table></div>";
+  }
+
+  $("out").innerHTML = html;
+  if (a.visits === 0) show("info", "No visits recorded in this date range.");
+}
+
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type: type }));
+  const link = document.createElement("a");
+  link.href = url; link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadCsv() {
+  if (!lastReport) { show("err", "Generate a report first."); return; }
+  const r = lastReport;
+  const lines = [
+    "metric,value",
+    "from," + r.from, "to," + r.to,
+    "sks_using_scribe," + r.adoption.usersUsingScribe,
+    "sks_manual_only," + r.adoption.usersManualOnly,
+    "scribe_visits," + r.adoption.scribeVisits,
+    "manual_visits," + r.adoption.manualVisits,
+    "scribe_median_ms," + (r.timeToComplete.scribeMedianMs ?? ""),
+    "manual_median_ms," + (r.timeToComplete.manualMedianMs ?? ""),
+    "total_ai_fields," + r.fieldsCaptured.totalAiFields,
+    "capture_rate_pct," + (r.fieldsCaptured.captureRatePct?.toFixed(1) ?? ""),
+    "ai_filled," + r.correction.aiFilled,
+    "ai_corrected," + r.correction.corrected,
+    "correction_rate_pct," + (r.correction.ratePct?.toFixed(1) ?? ""),
+    "manual_fields," + (r.provenance?.manual ?? ""),
+    "prefilled_fields," + (r.provenance?.prefilled ?? ""),
+    "derived_fields," + (r.provenance?.derived ?? ""),
+    "ai_overridden," + (r.provenance?.aiOverridden ?? ""),
+    "disagreement_rate_pct," + (r.provenance?.disagreementRatePct?.toFixed(1) ?? ""),
+    "sms_compose_opened," + r.counselling.smsComposeOpened,
+    "whatsapp_compose_opened," + r.counselling.whatsappComposeOpened,
+    "",
+    "field_id,filled,corrected,correction_rate_pct",
+    ...r.correction.perField.map((f) =>
+      [f.fieldId, f.filled, f.corrected, f.ratePct?.toFixed(1) ?? ""].join(",")),
+  ];
+  download("leapwell_telemetry_report_" + r.from + "_" + r.to + ".csv",
+    lines.join("\n"), "text/csv");
+}
+
+$("go").addEventListener("click", generate);
+$("csv").addEventListener("click", downloadCsv);
+$("json").addEventListener("click", () => {
+  if (!lastReport) { show("err", "Generate a report first."); return; }
+  download("leapwell_telemetry_report_" + lastReport.from + "_" + lastReport.to + ".json",
+    JSON.stringify(lastReport, null, 2), "application/json");
+});
+</script>
+</body>
+</html>

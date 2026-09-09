@@ -6,7 +6,7 @@ tests/test_telemetry_report.py (PR #55) -- that file itself is a port of
 uhis_lf_mobile's telemetry_report_test.dart. All three must agree, because
 reconciling the same date range across implementations is the strongest
 check that ingest is faithful. Pure logic, no database -- runs as plain
-unittest, same as uhis_next_core/tests/test_remote_auth.py's non-DB cases.
+unittest, same as spice_next_core/tests/test_remote_auth.py's non-DB cases.
 """
 
 import unittest

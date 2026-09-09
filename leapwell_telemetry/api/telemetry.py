@@ -23,7 +23,7 @@ from frappe import _
 from frappe.utils import cint, get_datetime
 
 from leapwell_telemetry import telemetry_report
-from uhis_next_core.auth.decorators import current_remote_tenant_id, whitelist
+from spice_next_core.auth.decorators import current_remote_tenant_id, whitelist
 
 _MAX_EVENTS_PER_BATCH = 500
 
